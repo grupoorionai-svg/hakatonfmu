@@ -96,36 +96,12 @@ def set_bg_from_url(img_url):
 set_bg_from_url("https://raw.githubusercontent.com/grupoorionai-svg/hakatonfmu/main/1.jpeg")
 
 # -----------------------------------------------------
-# CABEÇALHO CENTRALIZADO (LOGO + TÍTULO)
+# TÍTULO NO ESTILO DA MARCA
 # -----------------------------------------------------
-# URL RAW do logo (GitHub)
-logo_raw = "https://raw.githubusercontent.com/grupoorionai-svg/hakatonfmu/main/1.jpeg"
-
 st.markdown(
-    f"""
-    <div style="
-        width:100%;
-        display:flex;
-        justify-content:center;
-        align-items:center;
-        padding:18px 0;
-    ">
-      <div style="
-          width:100%;
-          max-width:1200px;
-          display:flex;
-          align-items:center;
-          justify-content:center;
-          gap:20px;
-          background: rgba(0,0,0,0.45);
-          padding:18px 28px;
-          border-radius:12px;
-      ">
-        <img src="{logo_raw}" style="height:72px; width:auto; object-fit:contain; border-radius:8px;"/>
-        <h1 style="color:white; font-size:48px; font-weight:800; margin:0; letter-spacing:1px;">
-            aiia | BANK
-        </h1>
-      </div>
+    """
+    <div style="display:flex; align-items:center; gap:12px; padding:8px 0;">
+        <h1 style="color:white; font-size:44px; font-weight:700; margin:0;">aiia | BANK</h1>
     </div>
     """,
     unsafe_allow_html=True
