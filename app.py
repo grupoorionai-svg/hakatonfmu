@@ -1,5 +1,7 @@
-import streamlit as st
+iimport streamlit as st
 import tempfile
+import base64
+import requests
 
 # Banco JSON
 from json_db import init_db, load_db
@@ -22,20 +24,69 @@ from services.emprestimos import contratar_emprestimo
 # -----------------------------------------------------
 init_db()
 
-st.set_page_config(page_title="Hub Financeiro Inteligente", layout="wide")
-st.title("💸 Hub Financeiro Inteligente — PDFs + RAG + Simulação")
+st.set_page_config(page_title="aiia | BANK", layout="wide")
 
 
 # -----------------------------------------------------
-# ADICIONAR SALDO DE TESTE
+# FUNDO PERSONALIZADO — usando imagem do GitHub RAW
 # -----------------------------------------------------
-if st.sidebar.button("💰 Adicionar saldo de teste (+ R$ 2.000)"):
-    from json_db import load_db, save_db
-    db = load_db()
-    db["saldo"] += 2000
-    save_db(db)
-    st.sidebar.success("Saldo de teste adicionado!")
-    st.rerun()
+def set_bg_from_url(img_url):
+    """Baixa a imagem do GitHub RAW e define como fundo."""
+    try:
+        resp = requests.get(img_url, timeout=10)
+        resp.raise_for_status()
+        encoded = base64.b64encode(resp.content).decode()
+    except Exception as e:
+        st.error(f"Não foi possível carregar a imagem de fundo: {e}")
+        return
+
+    st.markdown(
+        f"""
+        <style>
+        .stApp {{
+            background-image: url("data:image/jpeg;base64,{encoded}");
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            background-attachment: fixed;
+        }}
+
+        /* Texto branco para contraste */
+        h1, h2, h3, h4, h5, h6, p, label, span, div {{
+            color: white !important;
+        }}
+
+        /* Caixas sem fundo sólido */
+        .stMarkdown, .stTextInput>div, .stSelectbox>div, .stButton>button {{
+            background: rgba(0,0,0,0.40) !important;
+            border-radius: 8px;
+        }}
+
+        /* Sidebar */
+        section[data-testid="stSidebar"] {{
+            background: rgba(0,0,0,0.55) !important;
+        }}
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
+
+
+set_bg_from_url("https://raw.githubusercontent.com/grupoorionai-svg/hakatonfmu/main/1.jpeg")
+
+
+# -----------------------------------------------------
+# TÍTULO NO ESTILO DA MARCA
+# -----------------------------------------------------
+st.markdown(
+    """
+    <h1 style="color:white; font-size:44px; font-weight:700; margin-top:-10px;">
+        aiia | BANK
+    </h1>
+    """,
+    unsafe_allow_html=True
+)
+
 
 
 # -----------------------------------------------------
@@ -58,6 +109,18 @@ menu = st.sidebar.radio(
 
 
 # -----------------------------------------------------
+# ADICIONAR SALDO DE TESTE
+# -----------------------------------------------------
+if st.sidebar.button("💰 Adicionar saldo de teste (+ R$ 2.000)"):
+    from json_db import load_db, save_db
+    db = load_db()
+    db["saldo"] += 2000
+    save_db(db)
+    st.sidebar.success("Saldo de teste adicionado!")
+    st.rerun()
+
+
+# -----------------------------------------------------
 # BOTÃO DE RESET GERAL
 # -----------------------------------------------------
 if st.sidebar.button("🔄 Resetar Sistema (Limpar tudo)"):
@@ -67,9 +130,10 @@ if st.sidebar.button("🔄 Resetar Sistema (Limpar tudo)"):
     st.rerun()
 
 
-# -----------------------------------------------------
-# D A S H B O A R D
-# -----------------------------------------------------
+
+# =====================================================
+#                     D A S H B O A R D
+# =====================================================
 if menu == "Dashboard":
     st.header("📊 Dashboard Financeiro Inteligente")
 
@@ -79,16 +143,13 @@ if menu == "Dashboard":
     st.metric("Saldo atual", f"R$ {data['saldo']:.2f}")
     st.markdown("---")
 
-
     # ======================================================
     #   DASHBOARD PRO — GASTOS POR CATEGORIA (DINÂMICO)
     # ======================================================
-
     st.subheader("📊 Gastos por Categoria (PRO)")
 
     import plotly.graph_objects as go
 
-    # 1. SOMA DOS GASTOS POR CATEGORIA
     categoria_totais = {}
     for t in transacoes:
         if t["valor"] < 0:
@@ -96,7 +157,6 @@ if menu == "Dashboard":
             categoria_totais[cat] = categoria_totais.get(cat, 0) + abs(t["valor"])
 
     if categoria_totais:
-
         categoria_totais = dict(sorted(categoria_totais.items(), key=lambda x: x[1], reverse=True))
 
         labels = list(categoria_totais.keys())
@@ -120,8 +180,6 @@ if menu == "Dashboard":
 
         lista_cores = [cores.get(cat, "#7f8c8d") for cat in labels]
 
-
-        # 2. DONUT
         fig = go.Figure(
             data=[go.Pie(
                 labels=labels,
@@ -149,8 +207,6 @@ if menu == "Dashboard":
 
         st.plotly_chart(fig, use_container_width=True)
 
-
-        # 3. LISTAGEM DETALHADA
         st.markdown("### 📌 Detalhamento por Categoria")
 
         for categoria, valor in categoria_totais.items():
@@ -160,31 +216,24 @@ if menu == "Dashboard":
             st.markdown(f"""
             <div style='margin-bottom:15px;'>
                 <b style='color:white; font-size:18px;'>{categoria.capitalize()}</b>
-                <span style='color:#bbb;'> — R$ {valor:.2f} ({percentual:.1f}%)</span>
+                <span style='color:#ddd;'> — R$ {valor:.2f} ({percentual:.1f}%)</span>
                 <div style='background:{cor}; height:14px; width:{percentual}%; border-radius:8px; margin-top:5px;'></div>
             </div>
             """, unsafe_allow_html=True)
 
-
-        # 4. CATEGORIA MAIS CARA
         maior_categoria = max(categoria_totais, key=categoria_totais.get)
         st.markdown(f"""
-        <div style='background:#1c1c2e; padding:15px; border-radius:10px; margin-top:20px; color:white;'>
+        <div style='background:rgba(0,0,0,0.45); padding:15px; border-radius:10px; margin-top:20px; color:white;'>
             💡 Sua categoria mais cara é <b>{maior_categoria.capitalize()}</b>, 
-            com um total de <b>R$ {categoria_totais[maior_categoria]:.2f}</b>.
+            totalizando <b>R$ {categoria_totais[maior_categoria]:.2f}</b>.
         </div>
         """, unsafe_allow_html=True)
 
     else:
         st.info("Nenhuma despesa encontrada para gerar gráficos.")
 
-
     st.markdown("---")
 
-
-    # --------------------------
-    # Maiores gastos
-    # --------------------------
     st.subheader("💸 Maiores gastos")
     despesas = [t for t in transacoes if t["valor"] < 0]
 
@@ -197,27 +246,20 @@ if menu == "Dashboard":
 
     st.markdown("---")
 
-
-    # --------------------------
-    # Últimas transações
-    # --------------------------
     st.subheader("📜 Últimas transações")
-
     for t in reversed(transacoes[-10:]):
         st.write(f"- **{t['tipo']}** — {t['descricao']} — R$ {t['valor']} — categoria: {t['categoria']}")
 
 
-# -----------------------------------------------------
-# ENVIAR PDF
-# -----------------------------------------------------
+# =====================================================
+#                  ENVIAR PDF
+# =====================================================
 elif menu == "Enviar PDF":
     st.header("📁 Enviar PDFs de extratos, faturas ou comprovantes")
 
     uploaded = st.file_uploader("Envie PDFs", type=["pdf"], accept_multiple_files=True)
 
     if uploaded:
-        from langchain_community.document_loaders import PyPDFLoader
-
         st.session_state.pdf_bytes = [u.getvalue() for u in uploaded]
 
         with st.spinner("Lendo e indexando PDFs..."):
@@ -225,7 +267,6 @@ elif menu == "Enviar PDF":
 
         st.success("PDFs carregados com sucesso!")
         st.subheader("🔍 Extraindo transações dos PDFs...")
-
 
         for u in uploaded:
             with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
@@ -248,9 +289,9 @@ elif menu == "Enviar PDF":
         st.success("Transações adicionadas ao banco!")
 
 
-# -----------------------------------------------------
-# PERGUNTA (RAG)
-# -----------------------------------------------------
+# =====================================================
+#                    PERGUNTA RAG
+# =====================================================
 elif menu == "Fazer Pergunta (RAG)":
     st.header("🧠 Pergunte algo sobre os PDFs")
 
@@ -269,9 +310,9 @@ elif menu == "Fazer Pergunta (RAG)":
                 st.write(f["texto"])
 
 
-# -----------------------------------------------------
-# PIX
-# -----------------------------------------------------
+# =====================================================
+#                     PIX
+# =====================================================
 elif menu == "PIX":
     st.header("⚡ Fazer PIX")
 
@@ -283,9 +324,9 @@ elif menu == "PIX":
         st.success(msg) if ok else st.error(msg)
 
 
-# -----------------------------------------------------
-# PAGAMENTOS
-# -----------------------------------------------------
+# =====================================================
+#                   PAGAMENTOS
+# =====================================================
 elif menu == "Pagamentos":
     st.header("💳 Pagamento de Boleto")
 
@@ -297,9 +338,9 @@ elif menu == "Pagamentos":
         st.success(msg) if ok else st.error(msg)
 
 
-# -----------------------------------------------------
-# RECARGAS
-# -----------------------------------------------------
+# =====================================================
+#                     RECARGAS
+# =====================================================
 elif menu == "Recargas":
     st.header("📱 Recarga de celular")
 
@@ -312,9 +353,9 @@ elif menu == "Recargas":
         st.success(msg) if ok else st.error(msg)
 
 
-# -----------------------------------------------------
-# EMPRÉSTIMOS
-# -----------------------------------------------------
+# =====================================================
+#                   EMPRÉSTIMOS
+# =====================================================
 elif menu == "Empréstimos":
     st.header("🏦 Simulação de Empréstimo")
 
