@@ -1,28 +1,38 @@
-from json_db import add_transaction, load_db, save_db
+# emprestimos.py
+from json_db import load_db, save_db
+from datetime import datetime
 
 def contratar_emprestimo(valor, juros=0.10):
     data = load_db()
 
+    try:
+        valor = float(valor)
+    except Exception:
+        return False, "Valor inválido."
+
     if valor <= 0:
         return False, "Valor inválido."
 
-    # Total a pagar no futuro
     total = round(valor * (1 + juros), 2)
 
-    # Entrada do dinheiro (saldo aumenta imediatamente)
-    data["saldo"] += valor
+    # Atualiza saldo (entrada)
+    data["saldo"] = data.get("saldo", 0.0) + valor
 
-    # Registrar transação de entrada
-    add_transaction(
-        tipo="Empréstimo",
-        descricao="Crédito recebido via contratação de empréstimo",
-        valor=valor,                 # entrada positiva
-        categoria="empréstimo"       # categoria nova
-    )
+    # Cria transação (entrada positiva)
+    trans = {
+        "tipo": "Empréstimo",
+        "descricao": f"Empréstimo contratado - Total a pagar: R$ {total:.2f}",
+        "valor": float(valor),         # positivo => será contado como entrada
+        "categoria": "empréstimo",
+        "data": datetime.utcnow().isoformat()
+    }
 
-    # Salvar banco
+    # Garante que lista de transações exista
+    if "transacoes" not in data or not isinstance(data["transacoes"], list):
+        data["transacoes"] = []
+
+    # Adiciona transação e salva
+    data["transacoes"].append(trans)
     save_db(data)
 
-    # Retornar o valor total a pagar
     return True, total
-
