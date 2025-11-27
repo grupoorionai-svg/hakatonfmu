@@ -3,6 +3,7 @@ import streamlit as st
 import tempfile
 import base64
 import requests
+import os
 
 # Banco JSON
 from json_db import init_db, load_db, save_db
@@ -92,16 +93,65 @@ def set_bg_from_url(img_url):
         unsafe_allow_html=True
     )
 
-# Chamar com RAW do GitHub
+# Chamar com RAW do GitHub (fallback caso /mnt/data não exista)
 set_bg_from_url("https://raw.githubusercontent.com/grupoorionai-svg/hakatonfmu/main/1.jpeg")
 
 # -----------------------------------------------------
-# TÍTULO NO ESTILO DA MARCA
+# CABEÇALHO CENTRALIZADO (LOGO + TÍTULO) — usando base64 local
 # -----------------------------------------------------
+logo_path = "/mnt/data/1.jpeg"  # caminho local do arquivo que você enviou
+
+# verifica se o arquivo existe e monta o base64
+if os.path.exists(logo_path):
+    with open(logo_path, "rb") as f:
+        logo_b64 = base64.b64encode(f.read()).decode()
+    logo_src = f"data:image/jpeg;base64,{logo_b64}"
+else:
+    # fallback para o RAW (caso não exista local) — ainda pode falhar por CORS
+    logo_src = "https://raw.githubusercontent.com/grupoorionai-svg/hakatonfmu/main/1.jpeg"
+
 st.markdown(
-    """
-    <div style="display:flex; align-items:center; gap:12px; padding:8px 0;">
-        <h1 style="color:white; font-size:44px; font-weight:700; margin:0;">aiia | BANK</h1>
+    f"""
+    <style>
+      /* garante prioridade ao header */
+      .custom-header {{
+        width:100% !important;
+        display:flex !important;
+        justify-content:center !important;
+        align-items:center !important;
+        padding:18px 0 !important;
+      }}
+      .custom-header-inner {{
+        width:100% !important;
+        max-width:1200px !important;
+        display:flex !important;
+        align-items:center !important;
+        justify-content:center !important;
+        gap:20px !important;
+        background: rgba(0,0,0,0.45) !important;
+        padding:18px 28px !important;
+        border-radius:12px !important;
+      }}
+      .custom-header img {{
+        height:72px !important;
+        width:auto !important;
+        object-fit:contain !important;
+        border-radius:8px !important;
+      }}
+      .custom-header h1 {{
+        color:white !important;
+        font-size:48px !important;
+        font-weight:800 !important;
+        margin:0 !important;
+        letter-spacing:1px !important;
+      }}
+    </style>
+
+    <div class="custom-header">
+      <div class="custom-header-inner">
+        <img src="{logo_src}" alt="aiia | BANK"/>
+        <h1>aiia | BANK</h1>
+      </div>
     </div>
     """,
     unsafe_allow_html=True
