@@ -1,10 +1,11 @@
+# app.py
 import streamlit as st
 import tempfile
 import base64
 import requests
 
 # Banco JSON
-from json_db import init_db, load_db
+from json_db import init_db, load_db, save_db
 
 # PDFs e RAG
 from src.pdf_loader import load_and_index_pdfs
@@ -18,6 +19,8 @@ from services.pagamentos import pagar_boleto
 from services.recargas import fazer_recarga
 from services.emprestimos import contratar_emprestimo
 
+# Visualização
+import plotly.graph_objects as go
 
 # -----------------------------------------------------
 # Inicializar banco ao iniciar o app
@@ -26,12 +29,11 @@ init_db()
 
 st.set_page_config(page_title="aiia | BANK", layout="wide")
 
-
 # -----------------------------------------------------
 # FUNDO PERSONALIZADO — usando imagem do GitHub RAW
 # -----------------------------------------------------
 def set_bg_from_url(img_url):
-    """Baixa a imagem do GitHub RAW e define como fundo."""
+    """Baixa a imagem do GitHub RAW e define como fundo (base64)."""
     try:
         resp = requests.get(img_url, timeout=10)
         resp.raise_for_status()
@@ -43,6 +45,7 @@ def set_bg_from_url(img_url):
     st.markdown(
         f"""
         <style>
+        /* Fundo da aplicação */
         .stApp {{
             background-image: url("data:image/jpeg;base64,{encoded}");
             background-size: cover;
@@ -51,43 +54,58 @@ def set_bg_from_url(img_url):
             background-attachment: fixed;
         }}
 
-        /* Texto branco para contraste */
-        h1, h2, h3, h4, h5, h6, p, label, span, div {{
+        /* Texto branco por padrão para contraste sobre o fundo escuro */
+        h1, h2, h3, h4, h5, h6, p, label, span, div, .css-1v0mbdj {{
             color: white !important;
         }}
 
-        /* Caixas sem fundo sólido */
-        .stMarkdown, .stTextInput>div, .stSelectbox>div, .stButton>button {{
-            background: rgba(0,0,0,0.40) !important;
-            border-radius: 8px;
-        }}
-
-        /* Sidebar */
+        /* Sidebar translúcido */
         section[data-testid="stSidebar"] {{
             background: rgba(0,0,0,0.55) !important;
+            color: white !important;
         }}
+
+        /* Cards / blocos com leve fundo escuro e blur */
+        .stMarkdown, .stFrame, .stTextInput, .stButton > button, .stSelectbox > div {{
+            background: rgba(0,0,0,0.45) !important;
+            border-radius: 10px;
+        }}
+
+        /* Aplica blur/transparência ao contêiner do gráfico Plotly para melhorar legibilidade */
+        .stPlotlyChart > div {{
+            background: rgba(0,0,0,0.45) !important;
+            border-radius: 12px;
+            padding: 8px;
+            backdrop-filter: blur(4px);
+        }}
+
+        /* Ajustes gerais para evitar textos cortados */
+        .element-container, .block-container {{
+            padding-top: 8px !important;
+            padding-left: 18px !important;
+            padding-right: 18px !important;
+            padding-bottom: 18px !important;
+        }}
+
         </style>
         """,
         unsafe_allow_html=True
     )
 
-
+# Chamar com RAW do GitHub
 set_bg_from_url("https://raw.githubusercontent.com/grupoorionai-svg/hakatonfmu/main/1.jpeg")
-
 
 # -----------------------------------------------------
 # TÍTULO NO ESTILO DA MARCA
 # -----------------------------------------------------
 st.markdown(
     """
-    <h1 style="color:white; font-size:44px; font-weight:700; margin-top:-10px;">
-        aiia | BANK
-    </h1>
+    <div style="display:flex; align-items:center; gap:12px; padding:8px 0;">
+        <h1 style="color:white; font-size:44px; font-weight:700; margin:0;">aiia | BANK</h1>
+    </div>
     """,
     unsafe_allow_html=True
 )
-
-
 
 # -----------------------------------------------------
 # ESTADO GLOBAL
@@ -98,7 +116,6 @@ if "vectorstore" not in st.session_state:
 if "pdf_bytes" not in st.session_state:
     st.session_state.pdf_bytes = []
 
-
 # -----------------------------------------------------
 # MENU LATERAL
 # -----------------------------------------------------
@@ -107,29 +124,23 @@ menu = st.sidebar.radio(
     ["Dashboard", "Enviar PDF", "Fazer Pergunta (RAG)", "PIX", "Pagamentos", "Recargas", "Empréstimos"]
 )
 
-
 # -----------------------------------------------------
 # ADICIONAR SALDO DE TESTE
 # -----------------------------------------------------
 if st.sidebar.button("💰 Adicionar saldo de teste (+ R$ 2.000)"):
-    from json_db import load_db, save_db
     db = load_db()
     db["saldo"] += 2000
     save_db(db)
     st.sidebar.success("Saldo de teste adicionado!")
     st.rerun()
 
-
 # -----------------------------------------------------
 # BOTÃO DE RESET GERAL
 # -----------------------------------------------------
 if st.sidebar.button("🔄 Resetar Sistema (Limpar tudo)"):
-    from json_db import save_db
     save_db({"saldo": 0.0, "transacoes": []})
     st.sidebar.success("Sistema resetado com sucesso!")
     st.rerun()
-
-
 
 # =====================================================
 #                     D A S H B O A R D
@@ -138,9 +149,19 @@ if menu == "Dashboard":
     st.header("📊 Dashboard Financeiro Inteligente")
 
     data = load_db()
-    transacoes = data["transacoes"]
+    transacoes = data.get("transacoes", [])
 
-    st.metric("Saldo atual", f"R$ {data['saldo']:.2f}")
+    # Exibe saldo com st.metric (já existente)
+    col1, col2, col3 = st.columns([1.5,1,1])
+    with col1:
+        st.metric("Saldo atual", f"R$ {data.get('saldo', 0.0):.2f}")
+    with col2:
+        entradas = sum(t["valor"] for t in transacoes if t["valor"] > 0)
+        st.metric("Entradas (últimos)", f"R$ {entradas:.2f}")
+    with col3:
+        saidas = sum(abs(t["valor"]) for t in transacoes if t["valor"] < 0)
+        st.metric("Saídas (últimos)", f"R$ {saidas:.2f}")
+
     st.markdown("---")
 
     # ======================================================
@@ -148,8 +169,7 @@ if menu == "Dashboard":
     # ======================================================
     st.subheader("📊 Gastos por Categoria (PRO)")
 
-    import plotly.graph_objects as go
-
+    # 1. SOMA DOS GASTOS POR CATEGORIA
     categoria_totais = {}
     for t in transacoes:
         if t["valor"] < 0:
@@ -161,7 +181,7 @@ if menu == "Dashboard":
 
         labels = list(categoria_totais.keys())
         values = list(categoria_totais.values())
-        total = sum(values)
+        total = sum(values) if values else 1.0
 
         cores = {
             "luz": "#f39c12",
@@ -180,52 +200,91 @@ if menu == "Dashboard":
 
         lista_cores = [cores.get(cat, "#7f8c8d") for cat in labels]
 
+        # pull: destaque nas 3 maiores fatias (pequeno deslocamento)
+        pull = []
+        for i, v in enumerate(values):
+            if i < 3:
+                pull.append(0.08)  # destaque pequeno para as 3 maiores
+            else:
+                pull.append(0.0)
+
+        # Figura Plotly — Donut mais legível com labels externos e linhas
         fig = go.Figure(
             data=[go.Pie(
                 labels=labels,
                 values=values,
                 hole=0.55,
-                marker=dict(colors=lista_cores),
-                textinfo="label+percent",
-                textfont=dict(size=14, color="white")
+                marker=dict(colors=lista_cores, line=dict(color="black", width=1)),
+                textinfo="percent",                 # mostra só percentual nas fatias
+                insidetextorientation="radial",
+                textfont=dict(size=16, color="white"),
+                hoverinfo="label+value+percent",
+                sort=False,
+                pull=pull,
+                direction="clockwise",
+                textposition="outside",
+                automargin=True
             )]
         )
 
+        # Forçar linhas de conector mais longas e forma de rótulo
+        fig.update_traces(
+            marker=dict(line=dict(color="black", width=1)),
+            connector=dict(line=dict(width=1, dash="solid")),
+            hoverlabel=dict(font_size=16),
+            rotation=90
+        )
+
         fig.update_layout(
-            title="Distribuição dos Gastos",
+            title=dict(
+                text="Distribuição dos Gastos",
+                font=dict(size=26, color="white"),
+                x=0.5
+            ),
             paper_bgcolor="rgba(0,0,0,0)",
             plot_bgcolor="rgba(0,0,0,0)",
+            margin=dict(l=10, r=10, t=80, b=10),
+
+            # Legenda mais limpa e grande
             legend=dict(
                 orientation="h",
                 yanchor="bottom",
-                y=-0.25,
+                y=-0.30,
                 xanchor="center",
                 x=0.5,
-                font=dict(color="white")
+                font=dict(size=14, color="white")
             )
         )
 
+        # Renderiza o gráfico (uso de container para aplicar o CSS blur)
         st.plotly_chart(fig, use_container_width=True)
 
+        # 3. LISTAGEM DETALHADA (com barras visuais)
         st.markdown("### 📌 Detalhamento por Categoria")
-
         for categoria, valor in categoria_totais.items():
             percentual = (valor / total) * 100
             cor = cores.get(categoria, "#7f8c8d")
-
             st.markdown(f"""
-            <div style='margin-bottom:15px;'>
-                <b style='color:white; font-size:18px;'>{categoria.capitalize()}</b>
-                <span style='color:#ddd;'> — R$ {valor:.2f} ({percentual:.1f}%)</span>
-                <div style='background:{cor}; height:14px; width:{percentual}%; border-radius:8px; margin-top:5px;'></div>
+            <div style='margin-bottom:12px;'>
+                <div style='display:flex; justify-content:space-between; align-items:center; gap:8px;'>
+                    <div style='display:flex; align-items:center; gap:10px;'>
+                        <div style='width:12px; height:12px; background:{cor}; border-radius:3px;'></div>
+                        <b style='color:white; font-size:16px;'>{categoria.capitalize()}</b>
+                    </div>
+                    <span style='color:#ddd;'>R$ {valor:.2f} — {percentual:.1f}%</span>
+                </div>
+                <div style='background:rgba(255,255,255,0.08); height:12px; width:100%; border-radius:8px; margin-top:6px;'>
+                    <div style='background:{cor}; height:12px; width:{percentual}%; border-radius:8px;'></div>
+                </div>
             </div>
             """, unsafe_allow_html=True)
 
+        # 4. CATEGORIA MAIS CARA
         maior_categoria = max(categoria_totais, key=categoria_totais.get)
         st.markdown(f"""
-        <div style='background:rgba(0,0,0,0.45); padding:15px; border-radius:10px; margin-top:20px; color:white;'>
+        <div style='background:rgba(0,0,0,0.45); padding:12px; border-radius:10px; margin-top:8px; color:white;'>
             💡 Sua categoria mais cara é <b>{maior_categoria.capitalize()}</b>, 
-            totalizando <b>R$ {categoria_totais[maior_categoria]:.2f}</b>.
+            com um total de <b>R$ {categoria_totais[maior_categoria]:.2f}</b>.
         </div>
         """, unsafe_allow_html=True)
 
@@ -234,22 +293,27 @@ if menu == "Dashboard":
 
     st.markdown("---")
 
+    # --------------------------
+    # Maiores gastos
+    # --------------------------
     st.subheader("💸 Maiores gastos")
     despesas = [t for t in transacoes if t["valor"] < 0]
 
     if despesas:
         maiores = sorted(despesas, key=lambda x: x["valor"])[:5]
         for t in maiores:
-            st.write(f"**{t['descricao']}** — R$ {abs(t['valor'])} — categoria: {t['categoria']}")
+            st.write(f"**{t.get('descricao','(sem descrição)')}** — R$ {abs(t['valor']):.2f} — categoria: {t.get('categoria','outros')}")
     else:
         st.info("Nenhuma despesa registrada.")
 
     st.markdown("---")
 
+    # --------------------------
+    # Últimas transações
+    # --------------------------
     st.subheader("📜 Últimas transações")
     for t in reversed(transacoes[-10:]):
-        st.write(f"- **{t['tipo']}** — {t['descricao']} — R$ {t['valor']} — categoria: {t['categoria']}")
-
+        st.write(f"- **{t.get('tipo','') }** — {t.get('descricao','')} — R$ {t.get('valor',0.0):.2f} — categoria: {t.get('categoria','')}")
 
 # =====================================================
 #                  ENVIAR PDF
@@ -288,7 +352,6 @@ elif menu == "Enviar PDF":
 
         st.success("Transações adicionadas ao banco!")
 
-
 # =====================================================
 #                    PERGUNTA RAG
 # =====================================================
@@ -307,8 +370,7 @@ elif menu == "Fazer Pergunta (RAG)":
 
             st.markdown("### Fontes utilizadas")
             for f in fontes:
-                st.write(f["texto"])
-
+                st.write(f.get("texto",""))
 
 # =====================================================
 #                     PIX
@@ -323,7 +385,6 @@ elif menu == "PIX":
         ok, msg = enviar_pix(chave, valor)
         st.success(msg) if ok else st.error(msg)
 
-
 # =====================================================
 #                   PAGAMENTOS
 # =====================================================
@@ -336,7 +397,6 @@ elif menu == "Pagamentos":
     if st.button("Pagar"):
         ok, msg = pagar_boleto(codigo, valor)
         st.success(msg) if ok else st.error(msg)
-
 
 # =====================================================
 #                     RECARGAS
@@ -351,7 +411,6 @@ elif menu == "Recargas":
     if st.button("Recarregar"):
         ok, msg = fazer_recarga(numero, operadora, valor)
         st.success(msg) if ok else st.error(msg)
-
 
 # =====================================================
 #                   EMPRÉSTIMOS
