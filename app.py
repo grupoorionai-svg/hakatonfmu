@@ -65,7 +65,7 @@ def set_bg_from_url(img_url):
             color: white !important;
         }}
 
-        /* Cards / blocos com leve fundo escuro e blur */
+        /* Cards / blocos com leve fundo escuro e bordas arredondadas */
         .stMarkdown, .stFrame, .stTextInput, .stButton > button, .stSelectbox > div {{
             background: rgba(0,0,0,0.45) !important;
             border-radius: 10px;
@@ -156,10 +156,10 @@ if menu == "Dashboard":
     with col1:
         st.metric("Saldo atual", f"R$ {data.get('saldo', 0.0):.2f}")
     with col2:
-        entradas = sum(t["valor"] for t in transacoes if t["valor"] > 0)
+        entradas = sum(t.get("valor",0.0) for t in transacoes if t.get("valor",0.0) > 0)
         st.metric("Entradas (últimos)", f"R$ {entradas:.2f}")
     with col3:
-        saidas = sum(abs(t["valor"]) for t in transacoes if t["valor"] < 0)
+        saidas = sum(abs(t.get("valor",0.0)) for t in transacoes if t.get("valor",0.0) < 0)
         st.metric("Saídas (últimos)", f"R$ {saidas:.2f}")
 
     st.markdown("---")
@@ -172,9 +172,9 @@ if menu == "Dashboard":
     # 1. SOMA DOS GASTOS POR CATEGORIA
     categoria_totais = {}
     for t in transacoes:
-        if t["valor"] < 0:
+        if t.get("valor", 0.0) < 0:
             cat = t.get("categoria", "outros")
-            categoria_totais[cat] = categoria_totais.get(cat, 0) + abs(t["valor"])
+            categoria_totais[cat] = categoria_totais.get(cat, 0) + abs(t.get("valor", 0.0))
 
     if categoria_totais:
         categoria_totais = dict(sorted(categoria_totais.items(), key=lambda x: x[1], reverse=True))
@@ -216,23 +216,18 @@ if menu == "Dashboard":
                 hole=0.55,
                 marker=dict(colors=lista_cores, line=dict(color="black", width=1)),
                 textinfo="percent",                 # mostra só percentual nas fatias
-                insidetextorientation="radial",
                 textfont=dict(size=16, color="white"),
                 hoverinfo="label+value+percent",
                 sort=False,
                 pull=pull,
                 direction="clockwise",
-                textposition="outside",
-                automargin=True
+                textposition="outside"
             )]
         )
 
-        # Forçar linhas de conector mais longas e forma de rótulo
+        # Atualizações seguras e compatíveis (apenas parâmetros suportados pelo Pie)
         fig.update_traces(
-            marker=dict(line=dict(color="black", width=1)),
-            connector=dict(line=dict(width=1, dash="solid")),
             hoverlabel=dict(font_size=16),
-            rotation=90
         )
 
         fig.update_layout(
@@ -243,7 +238,7 @@ if menu == "Dashboard":
             ),
             paper_bgcolor="rgba(0,0,0,0)",
             plot_bgcolor="rgba(0,0,0,0)",
-            margin=dict(l=10, r=10, t=80, b=10),
+            margin=dict(l=20, r=20, t=80, b=20),
 
             # Legenda mais limpa e grande
             legend=dict(
@@ -297,12 +292,12 @@ if menu == "Dashboard":
     # Maiores gastos
     # --------------------------
     st.subheader("💸 Maiores gastos")
-    despesas = [t for t in transacoes if t["valor"] < 0]
+    despesas = [t for t in transacoes if t.get("valor", 0.0) < 0]
 
     if despesas:
-        maiores = sorted(despesas, key=lambda x: x["valor"])[:5]
+        maiores = sorted(despesas, key=lambda x: x.get("valor",0.0))[:5]
         for t in maiores:
-            st.write(f"**{t.get('descricao','(sem descrição)')}** — R$ {abs(t['valor']):.2f} — categoria: {t.get('categoria','outros')}")
+            st.write(f"**{t.get('descricao','(sem descrição)')}** — R$ {abs(t.get('valor',0.0)):.2f} — categoria: {t.get('categoria','outros')}")
     else:
         st.info("Nenhuma despesa registrada.")
 
