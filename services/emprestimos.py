@@ -6,21 +6,23 @@ def contratar_emprestimo(valor, juros=0.10):
     if valor <= 0:
         return False, "Valor inválido."
 
+    # Total a pagar no futuro
     total = round(valor * (1 + juros), 2)
 
-    # Saldo aumenta
+    # Entrada do dinheiro (saldo aumenta imediatamente)
     data["saldo"] += valor
 
-    # Registrar empréstimo
+    # Registrar transação de entrada
     add_transaction(
         tipo="Empréstimo",
-        descricao=f"Empréstimo contratado - Total a pagar: R$ {total}",
-        valor=valor
+        descricao="Crédito recebido via contratação de empréstimo",
+        valor=valor,                 # entrada positiva
+        categoria="empréstimo"       # categoria nova
     )
 
     # Salvar banco
     save_db(data)
 
-    # Retornar valor total a pagar (entrada simulada)
+    # Retornar o valor total a pagar
     return True, total
 
